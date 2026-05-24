@@ -9,8 +9,9 @@
   html,body{height:100%;margin:0;background:#0f1115;color:#e7eaf0;font:500 18px/1.2 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
   .app{display:flex;flex-direction:column;height:100%;max-width:520px;margin:0 auto;padding:env(safe-area-inset-top) 14px env(safe-area-inset-bottom)}
   .screen{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end;padding:18px 10px;gap:6px;overflow:hidden}
-  .expr{color:#8a93a6;font-size:20px;min-height:22px;word-break:break-all;text-align:right;max-width:100%}
-  .out{font-size:54px;font-weight:700;letter-spacing:.5px;word-break:break-all;text-align:right;max-width:100%}
+  .expr{color:#e7eaf0;font-size:36px;font-weight:600;min-height:40px;word-break:break-all;text-align:right;max-width:100%;transition:font-size .15s ease}
+  .expr.big{font-size:54px;font-weight:700}
+  .out{font-size:30px;font-weight:500;color:#8a93a6;word-break:break-all;text-align:right;max-width:100%;min-height:34px}
   .pad{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:10px 4px 14px}
   button{appearance:none;border:0;border-radius:18px;padding:18px 0;font:600 22px/1 inherit;color:#e7eaf0;background:#1b1f27;box-shadow:inset 0 0 0 1px #232936;transition:transform .05s ease, background .15s ease}
   button:active{transform:scale(.97)}
@@ -23,8 +24,8 @@
 <body>
 <div class="app">
   <div class="screen">
-    <div class="expr" id="expr"></div>
-    <div class="out" id="out">0</div>
+    <div class="expr" id="expr">0</div>
+    <div class="out" id="out"></div>
   </div>
   <div class="pad" id="pad">
     <button class="fn" data-k="C">C</button>
@@ -58,26 +59,44 @@
   const expr=document.getElementById('expr');
   let buf='', last='', justEq=false;
   const ops=new Set(['+','-','*','/']);
+  const pretty=s=>s.replace(/\*/g,'×').replace(/\//g,'÷').replace(/-/g,'−');
   function fmt(n){
-    if(!isFinite(n))return 'Ошибка';
-    const s=Number(n.toPrecision(12)).toString();
-    return s;
-  }
-  function render(){
-    out.textContent= buf===''? (last||'0') : buf.replace(/\*/g,'×').replace(/\//g,'÷').replace(/-/g,'−');
-    expr.textContent= justEq? '' : '';
+    if(n===null||n===undefined||!isFinite(n))return null;
+    return Number(n.toPrecision(12)).toString();
   }
   function evalExpr(s){
-    // sanitize
-    if(!/^[-+*/%.\d\s()]*$/.test(s))return NaN;
-    try{ return Function('"use strict";return ('+s.replace(/%/g,'/100')+')')(); }catch(e){return NaN;}
+    if(!s)return null;
+    if(!/^[-+*/%.\d\s()]*$/.test(s))return null;
+    let t=s;
+    while(t.length && (ops.has(t.slice(-1)) || t.slice(-1)==='.')){t=t.slice(0,-1);}
+    if(!t)return null;
+    try{ return Function('"use strict";return ('+t.replace(/%/g,'/100')+')')(); }catch(e){return null;}
+  }
+  function hasOp(s){return /[+\-*/%]/.test(s.slice(1));}
+  function render(){
+    expr.classList.toggle('big', justEq);
+    if(justEq){
+      expr.textContent = last || '0';
+      out.textContent='';
+      return;
+    }
+    expr.textContent = buf===''? (last||'0') : pretty(buf);
+    const v = evalExpr(buf);
+    const s = fmt(v);
+    if(s===null || buf==='' || !hasOp(buf) || s===buf){
+      out.textContent='';
+    }else{
+      out.textContent = '= ' + s;
+    }
   }
   function press(k){
     if(k==='C'){buf='';last='';justEq=false;render();return;}
     if(k==='back'){if(justEq){justEq=false;buf='';}buf=buf.slice(0,-1);render();return;}
     if(k==='='){
       const v=evalExpr(buf||last||'0');
-      last=fmt(v); buf=''; justEq=true; expr.textContent=''; out.textContent=last; return;
+      const s=fmt(v);
+      last = s===null ? 'Ошибка' : s;
+      buf=''; justEq=true; render(); return;
     }
     if(justEq){
       if(ops.has(k)){buf=last+k;}
@@ -92,17 +111,12 @@
       render(); return;
     }
     if(k==='.'){
-      // prevent multiple dots in current number
       const parts=buf.split(/[-+*/%]/); const cur=parts[parts.length-1];
       if(cur.includes('.'))return;
       if(cur==='')buf+='0';
       buf+='.'; render(); return;
     }
-    if(k==='%'){
-      if(buf==='')return;
-      buf+='%'; render(); return;
-    }
-    // digit
+    if(k==='%'){if(buf==='')return; buf+='%'; render(); return;}
     buf+=k; render();
   }
   document.getElementById('pad').addEventListener('click',e=>{
