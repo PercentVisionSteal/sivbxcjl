@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Калькулятор</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+  html,body{height:100%;margin:0;background:#0f1115;color:#e7eaf0;font:500 18px/1.2 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  .app{display:flex;flex-direction:column;height:100%;max-width:520px;margin:0 auto;padding:env(safe-area-inset-top) 14px env(safe-area-inset-bottom)}
+  .screen{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end;padding:18px 10px;gap:6px;overflow:hidden}
+  .expr{color:#8a93a6;font-size:20px;min-height:22px;word-break:break-all;text-align:right;max-width:100%}
+  .out{font-size:54px;font-weight:700;letter-spacing:.5px;word-break:break-all;text-align:right;max-width:100%}
+  .pad{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:10px 4px 14px}
+  button{appearance:none;border:0;border-radius:18px;padding:18px 0;font:600 22px/1 inherit;color:#e7eaf0;background:#1b1f27;box-shadow:inset 0 0 0 1px #232936;transition:transform .05s ease, background .15s ease}
+  button:active{transform:scale(.97)}
+  .op{background:#262c39;color:#ffd166}
+  .eq{background:linear-gradient(180deg,#3b82f6,#2563eb);color:#fff;box-shadow:none}
+  .fn{background:#1f2532;color:#9aa3b2}
+  .wide{grid-column:span 2}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="screen">
+    <div class="expr" id="expr"></div>
+    <div class="out" id="out">0</div>
+  </div>
+  <div class="pad" id="pad">
+    <button class="fn" data-k="C">C</button>
+    <button class="fn" data-k="back">⌫</button>
+    <button class="fn" data-k="%">%</button>
+    <button class="op" data-k="/">÷</button>
+
+    <button data-k="7">7</button>
+    <button data-k="8">8</button>
+    <button data-k="9">9</button>
+    <button class="op" data-k="*">×</button>
+
+    <button data-k="4">4</button>
+    <button data-k="5">5</button>
+    <button data-k="6">6</button>
+    <button class="op" data-k="-">−</button>
+
+    <button data-k="1">1</button>
+    <button data-k="2">2</button>
+    <button data-k="3">3</button>
+    <button class="op" data-k="+">+</button>
+
+    <button class="wide" data-k="0">0</button>
+    <button data-k=".">.</button>
+    <button class="eq" data-k="=">=</button>
+  </div>
+</div>
+<script>
+(function(){
+  const out=document.getElementById('out');
+  const expr=document.getElementById('expr');
+  let buf='', last='', justEq=false;
+  const ops=new Set(['+','-','*','/']);
+  function fmt(n){
+    if(!isFinite(n))return 'Ошибка';
+    const s=Number(n.toPrecision(12)).toString();
+    return s;
+  }
+  function render(){
+    out.textContent= buf===''? (last||'0') : buf.replace(/\*/g,'×').replace(/\//g,'÷').replace(/-/g,'−');
+    expr.textContent= justEq? '' : '';
+  }
+  function evalExpr(s){
+    // sanitize
+    if(!/^[-+*/%.\d\s()]*$/.test(s))return NaN;
+    try{ return Function('"use strict";return ('+s.replace(/%/g,'/100')+')')(); }catch(e){return NaN;}
+  }
+  function press(k){
+    if(k==='C'){buf='';last='';justEq=false;render();return;}
+    if(k==='back'){if(justEq){justEq=false;buf='';}buf=buf.slice(0,-1);render();return;}
+    if(k==='='){
+      const v=evalExpr(buf||last||'0');
+      last=fmt(v); buf=''; justEq=true; expr.textContent=''; out.textContent=last; return;
+    }
+    if(justEq){
+      if(ops.has(k)){buf=last+k;}
+      else{buf=k==='.'?'0.':k;}
+      justEq=false; render(); return;
+    }
+    if(ops.has(k)){
+      if(buf==='' && last!==''){buf=last+k;}
+      else if(buf===''){buf=(k==='-')?'-':'';}
+      else if(ops.has(buf.slice(-1))){buf=buf.slice(0,-1)+k;}
+      else{buf+=k;}
+      render(); return;
+    }
+    if(k==='.'){
+      // prevent multiple dots in current number
+      const parts=buf.split(/[-+*/%]/); const cur=parts[parts.length-1];
+      if(cur.includes('.'))return;
+      if(cur==='')buf+='0';
+      buf+='.'; render(); return;
+    }
+    if(k==='%'){
+      if(buf==='')return;
+      buf+='%'; render(); return;
+    }
+    // digit
+    buf+=k; render();
+  }
+  document.getElementById('pad').addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b)return; press(b.dataset.k);
+  });
+  document.addEventListener('keydown',e=>{
+    const k=e.key;
+    if(/^[0-9]$/.test(k))return press(k);
+    if(['+','-','*','/','.','%'].includes(k))return press(k);
+    if(k==='Enter'||k==='=')return press('=');
+    if(k==='Backspace')return press('back');
+    if(k==='Escape')return press('C');
+  });
+  render();
+})();
+</script>
+</body>
+</html>
